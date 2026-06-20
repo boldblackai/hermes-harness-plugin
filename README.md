@@ -1,8 +1,7 @@
 # hermes-harness-plugin
 
 A [Hermes Agent](https://hermes-agent.nousresearch.com/) plugin that optimizes
-Hermes for **harness environments** — the sandboxed agent runtimes (like the
-one this plugin was built inside) where `mise` ships preinstalled and on PATH.
+Hermes for use with [harness](https://github.com/boldblackai/harness).
 
 It currently bundles one thing: a **mise auto-activation skill + hook** modeled
 on [`pi-mise`](https://github.com/capotej/pi-mise) (the same idea, for the `pi`
