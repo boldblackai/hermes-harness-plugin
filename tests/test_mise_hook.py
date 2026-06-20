@@ -1,9 +1,9 @@
 """Tests for the mise auto-activation hook logic.
 
-These exercise the pure helpers (detection, prefix computation) and the
-end-to-end in-place mutation contract that the real Hermes dispatcher relies
-on: the same ``args`` dict passed to ``pre_tool_call`` is what the terminal
-handler later reads.
+These exercise the pure helpers (prefix computation) and the end-to-end
+in-place mutation contract that the real Hermes dispatcher relies on: the same
+``args`` dict passed to ``pre_tool_call`` is what the terminal handler later
+reads.
 """
 
 from __future__ import annotations
@@ -24,8 +24,7 @@ def _clean_env(monkeypatch):
     """Ensure env overrides don't leak between tests."""
     for var in ("HERMES_HARNESS_MISE_ALWAYS", "HERMES_HARNESS_MISE_DISABLE", "HERMES_HARNESS_MISE_SHELL"):
         monkeypatch.delenv(var, raising=False)
-    # Reset the cached binary probe so tests are hermetic.
-    mise._MISE_PROBED = False
+    # Reset the cached binary path so tests are hermetic.
     mise._MISE_BIN = None
     yield
 
@@ -33,7 +32,7 @@ def _clean_env(monkeypatch):
 @pytest.fixture
 def fake_mise(monkeypatch):
     """Pretend mise lives at a fixed path."""
-    monkeypatch.setattr(mise, "_resolve_mise", lambda: "/usr/local/bin/mise")
+    monkeypatch.setattr(mise, "get_mise_bin", lambda: "/usr/local/bin/mise")
     return "/usr/local/bin/mise"
 
 
@@ -48,9 +47,6 @@ def repo_with_config(tmp_path):
 # compute_prefix / should-activate logic
 # --------------------------------------------------------------------------- #
 class TestComputePrefix:
-    def test_no_mise_returns_none(self):
-        assert mise.compute_prefix({"command": "ls"}, mise_bin=None) is None
-
     def test_no_command_returns_none(self, fake_mise):
         assert mise.compute_prefix({}, fake_mise) is None
         assert mise.compute_prefix({"command": ""}, fake_mise) is None
@@ -149,13 +145,6 @@ class TestPreToolCallHook:
         mise.pre_tool_call("terminal", args)
         assert args["command"] == "ls"
 
-    def test_no_mise_is_noop(self, monkeypatch, repo_with_config):
-        monkeypatch.setattr(mise, "_resolve_mise", lambda: None)
-        monkeypatch.chdir(repo_with_config)
-        args = {"command": "ls"}
-        mise.pre_tool_call("terminal", args)
-        assert args["command"] == "ls"
-
     def test_no_config_is_noop(self, fake_mise, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
         args = {"command": "ls"}
@@ -167,6 +156,31 @@ class TestPreToolCallHook:
         monkeypatch.setenv("HERMES_HARNESS_MISE_ALWAYS", "1")
         # args without a command key — should not raise
         mise.pre_tool_call("terminal", {})
+
+
+# --------------------------------------------------------------------------- #
+# get_mise_bin: resolution is a PATH lookup, not an install probe
+# --------------------------------------------------------------------------- #
+class TestGetMiseBin:
+    def test_resolves_via_which(self, monkeypatch):
+        monkeypatch.setattr(mise.shutil, "which", lambda name: "/usr/local/bin/mise")
+        assert mise.get_mise_bin() == "/usr/local/bin/mise"
+
+    def test_falls_back_to_bare_name(self, monkeypatch):
+        monkeypatch.setattr(mise.shutil, "which", lambda name: None)
+        assert mise.get_mise_bin() == "mise"
+
+    def test_cached(self, monkeypatch):
+        calls = {"n": 0}
+
+        def _which(name):
+            calls["n"] += 1
+            return "/usr/local/bin/mise"
+
+        monkeypatch.setattr(mise.shutil, "which", _which)
+        mise.get_mise_bin()
+        mise.get_mise_bin()
+        assert calls["n"] == 1  # only resolved once
 
 
 # --------------------------------------------------------------------------- #

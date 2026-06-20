@@ -4,12 +4,14 @@ This is the "automatic" half of the plugin: a ``pre_tool_call`` hook that
 rewrites every ``terminal`` tool call so the command runs inside an activated
 mise shell. It mirrors the behaviour of `pi-mise
 <https://github.com/capotej/pi-mise>`_ (the same idea for the ``pi`` coding
-agent): when mise is present *and* a mise config file exists in the working
-tree, prepend ``eval "$(mise activate bash)"`` to the command.
+agent): when a mise config file exists in the working tree, prepend
+``eval "$(mise activate bash)"`` to the command.
+
+Harness images always ship mise installed and on PATH, so the hook never tries
+to *detect* mise — it resolves the binary once and assumes it is present.
 
 Activation is **transparent and idempotent** — it never double-wraps a command
-that is already activated, and it silently no-ops when mise is missing or no
-config is found.
+that is already activated, and it silently no-ops when no config is found.
 
 Environment overrides
 ---------------------
@@ -49,40 +51,23 @@ def _env_truthy(name: str) -> bool:
     return os.getenv(name, "").lower() in ("1", "true", "yes", "on")
 
 
-def _resolve_mise() -> Optional[str]:
-    """Return an absolute path to the mise binary, or ``None`` if absent."""
-    found = shutil.which("mise")
-    if found:
-        return found
-    # Fallback to well-known install locations when mise isn't on PATH yet
-    # (e.g. before any shell rc has been sourced).
-    candidates = (
-        "/usr/local/bin/mise",
-        "/opt/homebrew/bin/mise",
-        os.path.expanduser("~/.local/share/mise/bin/mise"),
-        os.path.expanduser("~/.local/bin/mise"),
-    )
-    for c in candidates:
-        if os.path.isfile(c) and os.access(c, os.X_OK):
-            return c
-    return None
-
-
-# Cache the resolved binary so we don't re-probe on every tool call.
+# Cache the resolved binary so we don't re-resolve on every tool call.
+# Harness images always ship mise on PATH, so a single `which` suffices.
 _MISE_BIN: Optional[str] = None
-_MISE_PROBED = False
 
 
-def get_mise_bin() -> Optional[str]:
-    """Cached lookup of the mise binary path."""
-    global _MISE_BIN, _MISE_PROBED
-    if not _MISE_PROBED:
-        _MISE_BIN = _resolve_mise()
-        _MISE_PROBED = True
-        if _MISE_BIN:
-            logger.debug("mise resolved to %s", _MISE_BIN)
-        else:
-            logger.debug("mise not found on PATH or known locations")
+def get_mise_bin() -> str:
+    """Return (and cache) the absolute path to the mise binary.
+
+    Harness environments always have mise installed and on PATH, so this is a
+    plain ``shutil.which`` lookup rather than an install probe. Falls back to
+    the bare name ``mise`` if the lookup somehow misses, letting the shell's
+    own PATH resolution handle it at exec time.
+    """
+    global _MISE_BIN
+    if _MISE_BIN is None:
+        _MISE_BIN = shutil.which("mise") or "mise"
+        logger.debug("mise resolved to %s", _MISE_BIN)
     return _MISE_BIN
 
 
@@ -108,14 +93,12 @@ def _activation_prefix(mise_bin: str) -> str:
     return f'eval "$({mise_bin} activate {shell})"'
 
 
-def compute_prefix(args: dict, mise_bin: Optional[str]) -> Optional[str]:
+def compute_prefix(args: dict, mise_bin: str) -> Optional[str]:
     """Decide whether to prepend mise activation to this call.
 
     Returns the prefix string to prepend, or ``None`` to leave the command
     untouched. Pure function (no side effects) so it is trivially testable.
     """
-    if mise_bin is None:
-        return None
     command = args.get("command")
     if not isinstance(command, str) or not command:
         return None
@@ -145,8 +128,7 @@ def pre_tool_call(tool_name: str, args: dict, task_id: str = "", **kwargs):
     if tool_name != "terminal":
         return None
     try:
-        mise_bin = get_mise_bin()
-        prefix = compute_prefix(args, mise_bin)
+        prefix = compute_prefix(args, get_mise_bin())
         if prefix is None:
             return None
         command = args["command"]
@@ -165,8 +147,6 @@ def on_session_start(session_id: str = "", model: str = "", platform: str = "", 
     """
     try:
         mise_bin = get_mise_bin()
-        if mise_bin is None:
-            return None
         found = find_mise_config(os.getcwd())
         if found is None:
             return None

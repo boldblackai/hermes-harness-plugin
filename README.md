@@ -2,8 +2,7 @@
 
 A [Hermes Agent](https://hermes-agent.nousresearch.com/) plugin that optimizes
 Hermes for **harness environments** — the sandboxed agent runtimes (like the
-one this plugin was built inside) where `mise` is installed but not yet on the
-shell's PATH.
+one this plugin was built inside) where `mise` ships preinstalled and on PATH.
 
 It currently bundles one thing: a **mise auto-activation skill + hook** modeled
 on [`pi-mise`](https://github.com/capotej/pi-mise) (the same idea, for the `pi`
@@ -15,11 +14,12 @@ When Hermes starts and this plugin is enabled, every `terminal()` command is
 transparently run inside an activated mise shell — but **only** when it
 matters:
 
-1. mise is installed (`mise` resolvable on PATH or at a known location), **and**
-2. a mise config file (`mise.toml` / `.mise.toml` / `.tool-versions`) exists in
+1. a mise config file (`mise.toml` / `.mise.toml` / `.tool-versions`) exists in
    the working directory or any parent, **or** `HERMES_HARNESS_MISE_ALWAYS=1`.
 
-If those conditions aren't met, the hook no-ops — zero overhead. It is also
+mise is assumed to be installed and on PATH — harness images always ship it, so
+the hook never tries to *detect* mise, it just resolves the binary once. If the
+above condition isn't met, the hook no-ops — zero overhead. It is also
 **idempotent**: it never double-wraps a command that's already activating mise.
 
 Concretely, a `terminal(command="bundle install")` issued in a repo with a
@@ -81,7 +81,7 @@ hermes-harness-plugin/
 └── src/hermes_harness_plugin/
     ├── __init__.py                     # register(ctx): skill + hooks
     ├── plugin.yaml                     # manifest (also enables directory-plugin use)
-    ├── mise.py                         # detection + activation hook logic
+    ├── mise.py                         # activation hook logic
     └── skills/
         └── mise/
             └── SKILL.md                # bundled skill
