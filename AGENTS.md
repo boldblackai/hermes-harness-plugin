@@ -14,6 +14,8 @@ preinstalled and on PATH. It bundles:
 - a `pre_tool_call` hook that transparently runs every `terminal()` command
   inside an activated mise shell (only when a mise config file is present),
 - an `on_session_start` hook that runs `mise trust` on the nearest config,
+- a `pre_llm_call` hook that injects the bundled `context.md` into every LLM
+  turn as additional context,
 - a `mise` skill (loadable via `skill_view("hermes-harness-plugin:mise")`).
 
 Docs: https://hermes-agent.nousresearch.com/docs (source of truth for Hermes
@@ -30,9 +32,11 @@ hermes-harness-plugin/
 ├── src/hermes_harness_plugin/
 │   ├── __init__.py                         # register(ctx): registers skill + hooks
 │   ├── plugin.yaml                         # manifest (shipped; NOT parsed for entry-point plugins)
-│   ├── mise.py                             # all hook + helper logic
+│   ├── mise.py                             # mise pre_tool_call hook + helpers
+│   ├── context.py                          # pre_llm_call context-injection hook
+│   ├── context.md                          # bundled context (injected every turn)
 │   └── skills/mise/SKILL.md                # bundled skill (shipped as package-data)
-└── tests/test_mise_hook.py                 # pytest; 21 tests
+└── tests/                                  # pytest; mise + context hook tests
 ```
 
 The package module is `hermes_harness_plugin`; the plugin namespace (entry-point
@@ -50,7 +54,7 @@ skill is `hermes-harness-plugin:mise`, never bare `mise`.
 
 ```bash
 uv sync                  # create/refresh .venv + install dev deps (incl. the plugin editable)
-uv run pytest            # run the test suite (21 tests; fast, ~0.02s)
+uv run pytest            # run the test suite (27 tests; fast, ~0.03s)
 uv run pytest -q         # same; addopts already sets -q
 uv build                 # build sdist + wheel into dist/
 ```

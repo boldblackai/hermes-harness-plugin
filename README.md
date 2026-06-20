@@ -34,6 +34,15 @@ activation is frictionless on fresh clones.
 It also contributes a **`mise` skill** (`skill_view("hermes-harness-plugin:mise")`)
 covering manual `mise exec`, tasks, installs, trust, and the common pitfalls.
 
+## Context injection (`pre_llm_call`)
+
+A `pre_llm_call` hook injects the contents of the bundled **`context.md`**
+(shipped inside the package) as additional context into every LLM turn. Edit
+`src/hermes_harness_plugin/context.md` in the repo to control what the model
+sees on every turn. The injection is ephemeral — it's appended to the current
+turn's user message at API-call time only; nothing is persisted to the session
+database, and the system prompt (and its prompt cache) is never touched.
+
 ## Install
 
 ```bash
@@ -80,7 +89,9 @@ hermes-harness-plugin/
 └── src/hermes_harness_plugin/
     ├── __init__.py                     # register(ctx): skill + hooks
     ├── plugin.yaml                     # manifest (also enables directory-plugin use)
-    ├── mise.py                         # activation hook logic
+    ├── mise.py                         # mise activation hook logic
+    ├── context.py                      # pre_llm_call context-injection hook
+    ├── context.md                      # bundled context (injected every turn)
     └── skills/
         └── mise/
             └── SKILL.md                # bundled skill
