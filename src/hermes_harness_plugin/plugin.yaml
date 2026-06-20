@@ -1,0 +1,15 @@
+# Hermes plugin manifest.
+#
+# NOTE: For a pip/entry-point plugin this file is NOT parsed by Hermes at load
+# time — the manifest is derived from the entry point and register(ctx). It is
+# kept here so the package can ALSO be dropped verbatim into
+# ~/.hermes/plugins/hermes-harness-plugin/ as a directory plugin, and to
+# document the plugin's intent in one place.
+name: hermes-harness-plugin
+version: 0.1.0
+description: Optimizes Hermes Agent for harness environments — bundles a mise auto-activation skill and hook.
+author: Hermes Harness Contributors
+license: MIT
+provides_hooks:
+  - pre_tool_call
+  - on_session_start

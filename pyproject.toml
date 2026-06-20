@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hermes-harness-plugin"
+version = "0.1.0"
+description = "Optimizes Hermes Agent for harness environments. Bundles a mise auto-activation skill + hook."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+authors = [{ name = "Hermes Harness Contributors" }]
+keywords = ["hermes", "hermes-agent", "plugin", "mise", "harness", "asdf"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: Software Development",
+]
+
+# Entry point: Hermes discovers this plugin via the
+# "hermes_agent.plugins" group and calls register(ctx) on import.
+# The entry-point NAME becomes the plugin namespace, so a skill registered
+# as `mise` is loadable via skill_view("hermes-harness-plugin:mise").
+[project.entry-points."hermes_agent.plugins"]
+hermes-harness-plugin = "hermes_harness_plugin"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+# Ship the manifest and bundled skill markdown alongside the package.
+[tool.setuptools.package-data]
+hermes_harness_plugin = ["plugin.yaml", "skills/**/*.md"]
+
+[project.optional-dependencies]
+dev = ["pytest>=7"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
