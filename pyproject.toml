@@ -49,3 +49,9 @@ target-version = "py313"
 [tool.ruff.lint]
 # Keep it sensible: pyflakes + pycodestyle + import sorting + useful extras.
 select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.uv]
+# Rolling 7-day cutoff: ignore any distribution published in the last week.
+# Re-evaluated on every `uv lock`, so it never goes stale. Pairs with the
+# exact pins (incl. hashes) in uv.lock to make resolution reproducible.
+exclude-newer = "7d"
