@@ -15,9 +15,27 @@ Hermes docs: https://hermes-agent.nousresearch.com/docs
 
 - **Python >=3.13** (developed on 3.13).
 - **uv** is the dev tool. No `requirements.txt`; lock is `uv.lock`.
-- **pytest** (>=7) is the only dev dependency (optional `[dev]` extra).
+- Dev dependencies (optional `[dev]` extra): **pytest** (tests), **ruff**
+  (linter/formatter), **ty** (type checker).
 - Build backend: setuptools with `src/` layout.
 - There is no bare `python`/`pip` on PATH; the environment is PEP 668 (use `uv` or the venv). Run Python via `uv run python ...`.
+
+## Lint, type-check, test
+
+CI (`.github/workflows/ci.yml`) runs these on every push/PR — run them locally
+before committing:
+
+```
+uv run ruff check .     # linter (config in [tool.ruff])
+uv run ty check src     # type checker
+uv run pytest           # tests
+```
+
+Dependency pinning: `uv.lock` holds exact versions + hashes, and
+`[tool.uv] exclude-newer = "7d"` applies a rolling 7-day cutoff that ignores
+any distribution published in the last week. CI installs with
+`uv sync --locked`, so a stale lock fails CI rather than silently re-resolving.
+After changing dependencies, re-lock with `uv lock`.
 
 ## Version control
 
