@@ -16,7 +16,7 @@ It bundles a **`mise` skill** and **three lifecycle hooks**:
 1. a `pre_tool_call` hook that transparently activates mise for every
    `terminal()` command when a mise config file is present;
 2. an `on_session_start` hook that trusts the nearest mise config on startup; and
-3. a `pre_llm_call` hook that injects a bundled `context.md` as additional
+3. a `pre_llm_call` hook that injects a bundled [`context.md`](src/hermes_harness_plugin/context.md) as additional
    context into every LLM turn.
 
 The mise activation is modeled on [`pi-mise`](https://github.com/capotej/pi-mise)
