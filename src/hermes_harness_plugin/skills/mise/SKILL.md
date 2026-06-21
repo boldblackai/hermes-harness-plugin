@@ -20,7 +20,6 @@ installed and a config file exists in the working tree (or
 `HERMES_HARNESS_MISE_ALWAYS=1` is set).
 
 - **If active**, do NOT manually add activation — just `cd` into the repo and run.
-- **To bypass once**, set `HERMES_HARNESS_MISE_DISABLE=1` in the command's env.
 
 ## Single-command execution (`mise exec`)
 

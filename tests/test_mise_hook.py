@@ -19,12 +19,7 @@ from hermes_harness_plugin import mise
 @pytest.fixture(autouse=True)
 def _clean_env(monkeypatch):
     """Ensure env overrides don't leak between tests."""
-    for var in (
-        "HERMES_HARNESS_MISE_ALWAYS",
-        "HERMES_HARNESS_MISE_DISABLE",
-        "HERMES_HARNESS_MISE_SHELL",
-    ):
-        monkeypatch.delenv(var, raising=False)
+    monkeypatch.delenv("HERMES_HARNESS_MISE_ALWAYS", raising=False)
     # Reset the cached binary path so tests are hermetic.
     mise._MISE_BIN = None
     yield
@@ -78,12 +73,6 @@ class TestComputePrefix:
         monkeypatch.chdir(tmp_path)
         args = {"command": "ls", "workdir": str(repo_with_config)}
         assert mise.compute_prefix(args, fake_mise) is not None
-
-    def test_shell_override(self, fake_mise, repo_with_config, monkeypatch):
-        monkeypatch.chdir(repo_with_config)
-        monkeypatch.setenv("HERMES_HARNESS_MISE_SHELL", "zsh")
-        prefix = mise.compute_prefix({"command": "ls"}, fake_mise)
-        assert "mise activate zsh" in prefix
 
 
 class TestIdempotence:
@@ -141,13 +130,6 @@ class TestPreToolCallHook:
         mise.pre_tool_call("read_file", args)
         assert args == {"command": "ls"}  # untouched
 
-    def test_disabled_env_is_noop(self, fake_mise, repo_with_config, monkeypatch):
-        monkeypatch.chdir(repo_with_config)
-        monkeypatch.setenv("HERMES_HARNESS_MISE_DISABLE", "1")
-        args = {"command": "ls"}
-        mise.pre_tool_call("terminal", args)
-        assert args["command"] == "ls"
-
     def test_no_config_is_noop(self, fake_mise, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
         args = {"command": "ls"}
@@ -159,6 +141,49 @@ class TestPreToolCallHook:
         monkeypatch.setenv("HERMES_HARNESS_MISE_ALWAYS", "1")
         # args without a command key — should not raise
         mise.pre_tool_call("terminal", {})
+
+
+# --------------------------------------------------------------------------- #
+# on_session_start: auto-trust the nearest config
+# --------------------------------------------------------------------------- #
+class TestOnSessionStartHook:
+    def _capture_run(self, monkeypatch):
+        calls = []
+
+        def _fake_run(*args, **kwargs):
+            calls.append((args, kwargs))
+
+        monkeypatch.setattr(mise.subprocess, "run", _fake_run)
+        return calls
+
+    def test_trusts_nearest_config(self, fake_mise, repo_with_config, monkeypatch):
+        """Runs `mise trust` on the nearest config when one is present."""
+        monkeypatch.chdir(repo_with_config)
+        calls = self._capture_run(monkeypatch)
+        mise.on_session_start("session-1")
+        assert len(calls) == 1
+        args, kwargs = calls[0]
+        assert args[0] == ["/usr/local/bin/mise", "trust", str(repo_with_config / "mise.toml")]
+        assert kwargs["cwd"] == str(repo_with_config)
+        assert kwargs["capture_output"] is True
+        assert kwargs["check"] is False
+
+    def test_noop_when_no_config(self, fake_mise, tmp_path, monkeypatch):
+        """Does not invoke subprocess when no config is found."""
+        monkeypatch.chdir(tmp_path)
+        calls = self._capture_run(monkeypatch)
+        mise.on_session_start("session-1")
+        assert calls == []
+
+    def test_never_raises_on_subprocess_error(self, fake_mise, repo_with_config, monkeypatch):
+        """A failing subprocess must not break the agent loop."""
+        monkeypatch.chdir(repo_with_config)
+
+        def _raise(*a, **kw):
+            raise FileNotFoundError("mise not found")
+
+        monkeypatch.setattr(mise.subprocess, "run", _raise)
+        mise.on_session_start("session-1")  # should not raise
 
 
 # --------------------------------------------------------------------------- #
@@ -204,7 +229,47 @@ class TestPackaging:
 
         assert (Path(pkg.__file__).parent / "plugin.yaml").is_file()
 
-    def test_register_callable(self):
-        import hermes_harness_plugin as pkg
 
-        assert callable(getattr(pkg, "register", None))
+# --------------------------------------------------------------------------- #
+# register(): wires up skills + hooks via the ctx object
+# --------------------------------------------------------------------------- #
+class _FakeCtx:
+    def __init__(self, fail_skill=False):
+        self.skills = []
+        self.hooks = []
+        self._fail_skill = fail_skill
+
+    def register_skill(self, name, path):
+        if self._fail_skill:
+            raise RuntimeError("boom")
+        self.skills.append((name, str(path)))
+
+    def register_hook(self, event, fn):
+        self.hooks.append((event, fn))
+
+
+class TestRegister:
+    def test_registers_skill_and_hooks(self):
+        from hermes_harness_plugin import context, register
+
+        ctx = _FakeCtx()
+        register(ctx)
+
+        skill_names = [name for name, _ in ctx.skills]
+        assert "mise" in skill_names
+
+        hook_events = [event for event, _ in ctx.hooks]
+        assert hook_events == ["pre_tool_call", "on_session_start", "pre_llm_call"]
+
+        hook_fns = {event: fn for event, fn in ctx.hooks}
+        from hermes_harness_plugin import mise as mise_mod
+        assert hook_fns["pre_tool_call"] == mise_mod.pre_tool_call
+        assert hook_fns["pre_llm_call"] == context.pre_llm_call
+
+    def test_continues_on_skill_registration_error(self):
+        """A broken skill registration must not prevent hooks from registering."""
+        from hermes_harness_plugin import register
+
+        ctx = _FakeCtx(fail_skill=True)
+        register(ctx)  # should not raise
+        assert len(ctx.hooks) == 3

@@ -25,6 +25,12 @@ classifiers = [
 # "hermes_agent.plugins" group and calls register(ctx) on import.
 # The entry-point NAME becomes the plugin namespace, so a skill registered
 # as `mise` is loadable via skill_view("hermes-harness-plugin:mise").
+[project.urls]
+Homepage = "https://github.com/boldblackai/hermes-harness-plugin"
+Repository = "https://github.com/boldblackai/hermes-harness-plugin"
+Issues = "https://github.com/boldblackai/hermes-harness-plugin/issues"
+Changelog = "https://github.com/boldblackai/hermes-harness-plugin/releases"
+
 [project.entry-points."hermes_agent.plugins"]
 hermes-harness-plugin = "hermes_harness_plugin"
 

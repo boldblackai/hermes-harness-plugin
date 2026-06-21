@@ -18,11 +18,6 @@ Environment overrides
 ``HERMES_HARNESS_MISE_ALWAYS=1``
     Force activation on every terminal call even when no config file is
     detected. Useful for harness images that ship a global mise toolchain.
-``HERMES_HARNESS_MISE_DISABLE=1``
-    Disable the hook entirely (e.g. to debug a command in a raw shell).
-``HERMES_HARNESS_MISE_SHELL=bash|zsh|fish``
-    Shell passed to ``mise activate``. Defaults to ``bash`` (the harness
-    default). Override only if the terminal backend uses a different shell.
 """
 
 import logging
@@ -86,8 +81,7 @@ def find_mise_config(directory) -> tuple[str, Path] | None:
 
 
 def _activation_prefix(mise_bin: str) -> str:
-    shell = os.getenv("HERMES_HARNESS_MISE_SHELL", "bash").strip() or "bash"
-    return f'eval "$({mise_bin} activate {shell})"'
+    return f'eval "$({mise_bin} activate bash)"'
 
 
 def compute_prefix(args: dict, mise_bin: str) -> str | None:
@@ -120,8 +114,6 @@ def pre_tool_call(tool_name: str, args: dict, task_id: str = "", **kwargs):
     object that is passed to this hook on to the terminal handler, so the
     rewrite takes effect for the actual command execution.
     """
-    if _env_truthy("HERMES_HARNESS_MISE_DISABLE"):
-        return None
     if tool_name != "terminal":
         return None
     try:

@@ -67,8 +67,6 @@ Confirm with `/plugins` in a session.
 | Variable | Effect |
 |---|---|
 | `HERMES_HARNESS_MISE_ALWAYS=1` | Activate on every terminal call, even with no config file. |
-| `HERMES_HARNESS_MISE_DISABLE=1` | Disable the hook entirely (raw shell). |
-| `HERMES_HARNESS_MISE_SHELL=zsh` | Shell passed to `mise activate` (default `bash`). |
 
 ## How it works
 

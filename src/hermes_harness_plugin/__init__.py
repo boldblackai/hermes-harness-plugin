@@ -4,7 +4,7 @@ Bundles:
   * a ``mise`` skill (loadable via ``skill_view("hermes-harness-plugin:mise")``)
   * a ``pre_tool_call`` hook that transparently activates mise for every
     ``terminal`` command when a mise config file is present in the working tree
-  * a ``pre_llm_call`` hook that injects the contents of ``~/.hermes/context.md``
+  * a ``pre_llm_call`` hook that injects the contents of a bundled ``context.md``
     as additional context into every LLM turn
 
 The entry point in ``pyproject.toml`` points Hermes at this package; on startup
