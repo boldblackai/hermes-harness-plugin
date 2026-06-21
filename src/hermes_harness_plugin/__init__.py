@@ -11,8 +11,6 @@ The entry point in ``pyproject.toml`` points Hermes at this package; on startup
 Hermes imports it and calls :func:`register`.
 """
 
-from __future__ import annotations
-
 import logging
 from pathlib import Path
 

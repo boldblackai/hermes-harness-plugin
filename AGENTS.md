@@ -13,7 +13,7 @@ Hermes docs: https://hermes-agent.nousresearch.com/docs
 
 ## Toolchain
 
-- **Python >=3.10** (developed on 3.13).
+- **Python >=3.13** (developed on 3.13).
 - **uv** is the dev tool. No `requirements.txt`; lock is `uv.lock`.
 - **pytest** (>=7) is the only dev dependency (optional `[dev]` extra).
 - Build backend: setuptools with `src/` layout.

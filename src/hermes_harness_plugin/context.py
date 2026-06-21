@@ -5,8 +5,6 @@ contents as additional context into every LLM turn. Edit that file to control
 what the model sees on every turn.
 """
 
-from __future__ import annotations
-
 import logging
 from pathlib import Path
 

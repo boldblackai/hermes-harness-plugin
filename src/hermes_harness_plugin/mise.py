@@ -25,14 +25,11 @@ Environment overrides
     default). Override only if the terminal backend uses a different shell.
 """
 
-from __future__ import annotations
-
 import logging
 import os
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Optional, Tuple
 
 logger = logging.getLogger("hermes_harness_plugin.mise")
 
@@ -53,7 +50,7 @@ def _env_truthy(name: str) -> bool:
 
 # Cache the resolved binary so we don't re-resolve on every tool call.
 # Harness images always ship mise on PATH, so a single `which` suffices.
-_MISE_BIN: Optional[str] = None
+_MISE_BIN: str | None = None
 
 
 def get_mise_bin() -> str:
@@ -71,7 +68,7 @@ def get_mise_bin() -> str:
     return _MISE_BIN
 
 
-def find_mise_config(directory) -> Optional[Tuple[str, Path]]:
+def find_mise_config(directory) -> tuple[str, Path] | None:
     """Walk up from *directory* to the nearest mise config file.
 
     Returns ``(filename, absolute_path)`` or ``None``. Mirrors mise's own
@@ -93,7 +90,7 @@ def _activation_prefix(mise_bin: str) -> str:
     return f'eval "$({mise_bin} activate {shell})"'
 
 
-def compute_prefix(args: dict, mise_bin: str) -> Optional[str]:
+def compute_prefix(args: dict, mise_bin: str) -> str | None:
     """Decide whether to prepend mise activation to this call.
 
     Returns the prefix string to prepend, or ``None`` to leave the command

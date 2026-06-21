@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "Optimizes Hermes Agent for harness environments. Bundles a mise auto-activation skill + hook."
 readme = "README.md"
 license = { text = "MIT" }
-requires-python = ">=3.10"
+requires-python = ">=3.13"
 authors = [{ name = "Hermes Harness Contributors" }]
 keywords = ["hermes", "hermes-agent", "plugin", "mise", "harness", "asdf"]
 classifiers = [
@@ -17,6 +17,7 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Software Development",
 ]
 
@@ -35,8 +36,16 @@ where = ["src"]
 hermes_harness_plugin = ["plugin.yaml", "skills/**/*.md", "context.md"]
 
 [project.optional-dependencies]
-dev = ["pytest>=7"]
+dev = ["pytest>=7", "ruff>=0.13", "ty>=0.0.1"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+
+[tool.ruff]
+line-length = 99
+target-version = "py313"
+
+[tool.ruff.lint]
+# Keep it sensible: pyflakes + pycodestyle + import sorting + useful extras.
+select = ["E", "F", "I", "UP", "B", "SIM"]

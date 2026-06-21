@@ -1,7 +1,5 @@
 """Tests for the pre_llm_call context-injection hook logic."""
 
-from __future__ import annotations
-
 from pathlib import Path
 
 from hermes_harness_plugin import context

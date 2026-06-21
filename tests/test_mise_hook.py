@@ -6,9 +6,6 @@ in-place mutation contract that the real Hermes dispatcher relies on: the same
 reads.
 """
 
-from __future__ import annotations
-
-import os
 from pathlib import Path
 
 import pytest
@@ -22,7 +19,11 @@ from hermes_harness_plugin import mise
 @pytest.fixture(autouse=True)
 def _clean_env(monkeypatch):
     """Ensure env overrides don't leak between tests."""
-    for var in ("HERMES_HARNESS_MISE_ALWAYS", "HERMES_HARNESS_MISE_DISABLE", "HERMES_HARNESS_MISE_SHELL"):
+    for var in (
+        "HERMES_HARNESS_MISE_ALWAYS",
+        "HERMES_HARNESS_MISE_DISABLE",
+        "HERMES_HARNESS_MISE_SHELL",
+    ):
         monkeypatch.delenv(var, raising=False)
     # Reset the cached binary path so tests are hermetic.
     mise._MISE_BIN = None
@@ -70,7 +71,9 @@ class TestComputePrefix:
         assert prefix is not None
         assert "mise activate bash" in prefix
 
-    def test_workdir_arg_used_for_config_lookup(self, fake_mise, repo_with_config, tmp_path, monkeypatch):
+    def test_workdir_arg_used_for_config_lookup(
+        self, fake_mise, repo_with_config, tmp_path, monkeypatch
+    ):
         # cwd has no config, but workdir points at a repo that does
         monkeypatch.chdir(tmp_path)
         args = {"command": "ls", "workdir": str(repo_with_config)}
