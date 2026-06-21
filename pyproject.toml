@@ -1,20 +1,19 @@
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "hermes-harness-plugin"
-version = "0.1.0"
 description = "Optimizes Hermes Agent for harness environments. Bundles a mise auto-activation skill + hook."
 readme = "README.md"
-license = { text = "MIT" }
+dynamic = ["version"]
+license = "MIT"
 requires-python = ">=3.13"
 authors = [{ name = "Hermes Harness Contributors" }]
 keywords = ["hermes", "hermes-agent", "plugin", "mise", "harness", "asdf"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3 :: Only",
     "Programming Language :: Python :: 3.13",
@@ -36,6 +35,11 @@ hermes-harness-plugin = "hermes_harness_plugin"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+# Single source of truth for the version: read __version__ from the package,
+# so it can't desync from pyproject. plugin.yaml / SKILL.md copies are cosmetic.
+[tool.setuptools.dynamic]
+version = { attr = "hermes_harness_plugin.__version__" }
 
 # Ship the manifest and bundled skill markdown alongside the package.
 [tool.setuptools.package-data]

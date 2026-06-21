@@ -7,8 +7,8 @@ mise shell. It mirrors the behaviour of `pi-mise
 agent): when a mise config file exists in the working tree, prepend
 ``eval "$(mise activate bash)"`` to the command.
 
-Harness images always ship mise installed and on PATH, so the hook never tries
-to *detect* mise — it resolves the binary once and assumes it is present.
+Harness images always install mise at a fixed path (``_MISE_BIN``), so the hook
+uses that path directly — it never tries to *detect* or resolve mise from PATH.
 
 Activation is **transparent and idempotent** — it never double-wraps a command
 that is already activated, and it silently no-ops when no config is found.

@@ -3,9 +3,24 @@
 A [Hermes Agent](https://hermes-agent.nousresearch.com/) plugin that optimizes
 Hermes for use with [harness](https://github.com/boldblackai/harness).
 
-It currently bundles one thing: a **mise auto-activation skill + hook** modeled
-on [`pi-mise`](https://github.com/capotej/pi-mise) (the same idea, for the `pi`
-coding agent).
+> **Scope.** This plugin is purpose-built for the boldblackai **harness**
+> container images. It assumes mise lives at `/usr/local/bin/mise`,
+> auto-trusts the nearest mise config on session start, and injects
+> harness-specific environment facts into every LLM turn. It is not intended
+> for — and will misbehave outside of — those images. If you pip-install it
+> elsewhere, expect the hardcoded paths and bundled context to be wrong for
+> your environment.
+
+It bundles a **`mise` skill** and **three lifecycle hooks**:
+
+1. a `pre_tool_call` hook that transparently activates mise for every
+   `terminal()` command when a mise config file is present;
+2. an `on_session_start` hook that trusts the nearest mise config on startup; and
+3. a `pre_llm_call` hook that injects a bundled `context.md` as additional
+   context into every LLM turn.
+
+The mise activation is modeled on [`pi-mise`](https://github.com/capotej/pi-mise)
+(the same idea, for the `pi` coding agent).
 
 ## What it does
 
@@ -16,10 +31,10 @@ matters:
 1. a mise config file (`mise.toml` / `.mise.toml` / `.tool-versions`) exists in
    the working directory or any parent.
 
-mise is assumed to be installed and on PATH — harness images always ship it, so
-the hook never tries to *detect* mise, it just resolves the binary once. If no
-config is found, the hook no-ops — zero overhead. It is also
-**idempotent**: it never double-wraps a command that's already activating mise.
+Harness images always ship mise at `/usr/local/bin/mise`, so the hook uses that
+path directly — it never tries to *detect* or resolve mise from PATH. If no
+config is found, the hook no-ops — zero overhead. It is also **idempotent**: it
+never double-wraps a command that's already activating mise.
 
 Concretely, a `terminal(command="bundle install")` issued in a repo with a
 `mise.toml` becomes:
@@ -29,7 +44,9 @@ eval "$(/usr/local/bin/mise activate bash)" && bundle install
 ```
 
 An `on_session_start` hook also runs `mise trust` on the nearest config so
-activation is frictionless on fresh clones.
+activation is frictionless on fresh clones. (This auto-trusts whatever config
+is in the working tree — appropriate inside a trusted harness image, but
+another reason not to run this plugin elsewhere.)
 
 It also contributes a **`mise` skill** (`skill_view("hermes-harness-plugin:mise")`)
 covering manual `mise exec`, tasks, installs, trust, and the common pitfalls.
@@ -39,9 +56,17 @@ covering manual `mise exec`, tasks, installs, trust, and the common pitfalls.
 A `pre_llm_call` hook injects the contents of the bundled **`context.md`**
 (shipped inside the package) as additional context into every LLM turn. Edit
 `src/hermes_harness_plugin/context.md` in the repo to control what the model
-sees on every turn. The injection is ephemeral — it's appended to the current
-turn's user message at API-call time only; nothing is persisted to the session
-database, and the system prompt (and its prompt cache) is never touched.
+sees on every turn. By design the injection is per-turn: the hook returns the
+text for the host to splice into the current turn only. How the host handles
+persistence, the system prompt, and prompt caching is a Hermes decision outside
+this plugin's control — see the Hermes docs for those semantics.
+
+## Prerequisites
+
+- **Python >= 3.13.**
+- **Hermes Agent** — this is a plugin, not a standalone app; it does nothing
+  without Hermes loaded as the host.
+- **mise** at `/usr/local/bin/mise` (preinstalled on harness images).
 
 ## Install
 
@@ -66,10 +91,10 @@ Confirm with `/plugins` in a session.
 
 Hermes' `pre_tool_call` hook receives the **same `args` dict** that is later
 dispatched to the `terminal` handler, so mutating `args["command"]` in place
-inside the hook changes what actually executes. The plugin resolves the mise
-binary once (cached), checks for a config file, and prepends the activation
-prefix. All failures are caught and logged — a broken hook never breaks the
-agent loop.
+inside the hook changes what actually executes. The plugin prepends the
+activation prefix (using the hardcoded mise path), checks for a config file,
+and rewrites the command. All failures are caught and logged — a broken hook
+never breaks the agent loop.
 
 ## Repo layout
 
