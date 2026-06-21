@@ -16,19 +16,9 @@ from hermes_harness_plugin import mise
 # --------------------------------------------------------------------------- #
 # Fixtures
 # --------------------------------------------------------------------------- #
-@pytest.fixture(autouse=True)
-def _clean_env(monkeypatch):
-    """Ensure env overrides don't leak between tests."""
-    monkeypatch.delenv("HERMES_HARNESS_MISE_ALWAYS", raising=False)
-    # Reset the cached binary path so tests are hermetic.
-    mise._MISE_BIN = None
-    yield
-
-
 @pytest.fixture
-def fake_mise(monkeypatch):
-    """Pretend mise lives at a fixed path."""
-    monkeypatch.setattr(mise, "get_mise_bin", lambda: "/usr/local/bin/mise")
+def fake_mise():
+    """The hardcoded mise path (matches _MISE_BIN in mise.py)."""
     return "/usr/local/bin/mise"
 
 
@@ -47,18 +37,10 @@ class TestComputePrefix:
         assert mise.compute_prefix({}, fake_mise) is None
         assert mise.compute_prefix({"command": ""}, fake_mise) is None
 
-    def test_no_config_no_force_returns_none(self, fake_mise, tmp_path, monkeypatch):
-        # cwd has no config file; not forced
+    def test_no_config_returns_none(self, fake_mise, tmp_path, monkeypatch):
+        # cwd has no config file
         monkeypatch.chdir(tmp_path)
         assert mise.compute_prefix({"command": "ls"}, fake_mise) is None
-
-    def test_force_always_activates_without_config(self, fake_mise, tmp_path, monkeypatch):
-        monkeypatch.chdir(tmp_path)
-        monkeypatch.setenv("HERMES_HARNESS_MISE_ALWAYS", "1")
-        prefix = mise.compute_prefix({"command": "ls"}, fake_mise)
-        assert prefix is not None
-        assert "mise activate bash" in prefix
-        assert fake_mise in prefix
 
     def test_config_present_activates(self, fake_mise, repo_with_config, monkeypatch):
         monkeypatch.chdir(repo_with_config)
@@ -136,9 +118,9 @@ class TestPreToolCallHook:
         mise.pre_tool_call("terminal", args)
         assert args["command"] == "ls"
 
-    def test_never_raises_on_bad_args(self, fake_mise, monkeypatch):
+    def test_never_raises_on_bad_args(self, fake_mise, repo_with_config, monkeypatch):
         """A broken hook must not break the agent loop."""
-        monkeypatch.setenv("HERMES_HARNESS_MISE_ALWAYS", "1")
+        monkeypatch.chdir(repo_with_config)
         # args without a command key — should not raise
         mise.pre_tool_call("terminal", {})
 
@@ -184,31 +166,6 @@ class TestOnSessionStartHook:
 
         monkeypatch.setattr(mise.subprocess, "run", _raise)
         mise.on_session_start("session-1")  # should not raise
-
-
-# --------------------------------------------------------------------------- #
-# get_mise_bin: resolution is a PATH lookup, not an install probe
-# --------------------------------------------------------------------------- #
-class TestGetMiseBin:
-    def test_resolves_via_which(self, monkeypatch):
-        monkeypatch.setattr(mise.shutil, "which", lambda name: "/usr/local/bin/mise")
-        assert mise.get_mise_bin() == "/usr/local/bin/mise"
-
-    def test_falls_back_to_bare_name(self, monkeypatch):
-        monkeypatch.setattr(mise.shutil, "which", lambda name: None)
-        assert mise.get_mise_bin() == "mise"
-
-    def test_cached(self, monkeypatch):
-        calls = {"n": 0}
-
-        def _which(name):
-            calls["n"] += 1
-            return "/usr/local/bin/mise"
-
-        monkeypatch.setattr(mise.shutil, "which", _which)
-        mise.get_mise_bin()
-        mise.get_mise_bin()
-        assert calls["n"] == 1  # only resolved once
 
 
 # --------------------------------------------------------------------------- #

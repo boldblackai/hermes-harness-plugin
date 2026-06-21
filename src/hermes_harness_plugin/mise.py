@@ -12,17 +12,10 @@ to *detect* mise — it resolves the binary once and assumes it is present.
 
 Activation is **transparent and idempotent** — it never double-wraps a command
 that is already activated, and it silently no-ops when no config is found.
-
-Environment overrides
----------------------
-``HERMES_HARNESS_MISE_ALWAYS=1``
-    Force activation on every terminal call even when no config file is
-    detected. Useful for harness images that ship a global mise toolchain.
 """
 
 import logging
 import os
-import shutil
 import subprocess
 from pathlib import Path
 
@@ -35,32 +28,8 @@ _MISE_CONFIG_FILES = ("mise.toml", ".mise.toml", ".tool-versions")
 # already running inside an activated mise shell.
 _ACTIVATE_MARKER = "__MISE_EXE="
 
-
-# --------------------------------------------------------------------------- #
-# Helpers
-# --------------------------------------------------------------------------- #
-def _env_truthy(name: str) -> bool:
-    return os.getenv(name, "").lower() in ("1", "true", "yes", "on")
-
-
-# Cache the resolved binary so we don't re-resolve on every tool call.
-# Harness images always ship mise on PATH, so a single `which` suffices.
-_MISE_BIN: str | None = None
-
-
-def get_mise_bin() -> str:
-    """Return (and cache) the absolute path to the mise binary.
-
-    Harness environments always have mise installed and on PATH, so this is a
-    plain ``shutil.which`` lookup rather than an install probe. Falls back to
-    the bare name ``mise`` if the lookup somehow misses, letting the shell's
-    own PATH resolution handle it at exec time.
-    """
-    global _MISE_BIN
-    if _MISE_BIN is None:
-        _MISE_BIN = shutil.which("mise") or "mise"
-        logger.debug("mise resolved to %s", _MISE_BIN)
-    return _MISE_BIN
+# Harness images always install mise at this path.
+_MISE_BIN = "/usr/local/bin/mise"
 
 
 def find_mise_config(directory) -> tuple[str, Path] | None:
@@ -97,10 +66,9 @@ def compute_prefix(args: dict, mise_bin: str) -> str | None:
     if _ACTIVATE_MARKER in command or "mise activate" in command:
         return None
 
-    if not _env_truthy("HERMES_HARNESS_MISE_ALWAYS"):
-        where = args.get("workdir") or os.getcwd()
-        if find_mise_config(where) is None:
-            return None
+    where = args.get("workdir") or os.getcwd()
+    if find_mise_config(where) is None:
+        return None
     return _activation_prefix(mise_bin)
 
 
@@ -117,7 +85,7 @@ def pre_tool_call(tool_name: str, args: dict, task_id: str = "", **kwargs):
     if tool_name != "terminal":
         return None
     try:
-        prefix = compute_prefix(args, get_mise_bin())
+        prefix = compute_prefix(args, _MISE_BIN)
         if prefix is None:
             return None
         command = args["command"]
@@ -135,7 +103,7 @@ def on_session_start(session_id: str = "", model: str = "", platform: str = "", 
     runs ``mise trust``. We do it up front, idempotently.
     """
     try:
-        mise_bin = get_mise_bin()
+        mise_bin = _MISE_BIN
         found = find_mise_config(os.getcwd())
         if found is None:
             return None

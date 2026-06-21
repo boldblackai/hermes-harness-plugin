@@ -14,11 +14,11 @@ transparently run inside an activated mise shell — but **only** when it
 matters:
 
 1. a mise config file (`mise.toml` / `.mise.toml` / `.tool-versions`) exists in
-   the working directory or any parent, **or** `HERMES_HARNESS_MISE_ALWAYS=1`.
+   the working directory or any parent.
 
 mise is assumed to be installed and on PATH — harness images always ship it, so
-the hook never tries to *detect* mise, it just resolves the binary once. If the
-above condition isn't met, the hook no-ops — zero overhead. It is also
+the hook never tries to *detect* mise, it just resolves the binary once. If no
+config is found, the hook no-ops — zero overhead. It is also
 **idempotent**: it never double-wraps a command that's already activating mise.
 
 Concretely, a `terminal(command="bundle install")` issued in a repo with a
@@ -61,12 +61,6 @@ hermes plugins enable hermes-harness-plugin
 ```
 
 Confirm with `/plugins` in a session.
-
-## Environment overrides
-
-| Variable | Effect |
-|---|---|
-| `HERMES_HARNESS_MISE_ALWAYS=1` | Activate on every terminal call, even with no config file. |
 
 ## How it works
 

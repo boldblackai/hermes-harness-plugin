@@ -63,9 +63,8 @@ terminal("bundle install")
 - `compute_prefix(args, mise_bin) -> Optional[str]` — **pure function**, the
   testable decision core. Returns the activation prefix or `None` to no-op.
   All should-activate logic lives here.
-- `get_mise_bin() -> str` — resolves + caches the mise path via
-  `shutil.which("mise") or "mise"`. Harness images always have mise, so this is
-  a *resolution*, not an install probe. Do not add fallback location probes.
+- `_MISE_BIN = "/usr/local/bin/mise"` — hardcoded; harness images always
+  install mise at this path. No resolution or caching needed.
 - `find_mise_config(directory)` — walks up from the dir to the nearest of
   `mise.toml` / `.mise.toml` / `.tool-versions` (priority order within a dir).
 - `pre_tool_call(...)` / `on_session_start(...)` — the registered hooks.
@@ -87,12 +86,7 @@ failure — a broken hook must never break the agent loop. Preserve this when ed
 
 - **Pure helpers over integration tests.** New should-activate logic goes into
   `compute_prefix` (or a similarly pure helper), then gets a unit test. The
-  hooks stay thin: resolve, call the pure function, mutate in place, catch all.
-- **Env-var truthy parsing** is centralized in `_env_truthy`; reuse it rather
-  than ad-hoc `os.getenv` checks.
-- **Testing resets state.** The autouse `_clean_env` fixture clears the override
-  env vars and resets `mise._MISE_BIN` between tests. If you add new cached
-  state, reset it there too.
+  hooks stay thin: call the pure function, mutate in place, catch all.
 - **pytest config** is in `pyproject.toml` (`testpaths=["tests"]`, `addopts="-q"`).
   Do not add a separate `pytest.ini`.
 

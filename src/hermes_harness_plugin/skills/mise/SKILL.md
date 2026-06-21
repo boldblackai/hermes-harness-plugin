@@ -15,9 +15,8 @@ replacing asdf / rbenv / nvm / pyenv and friends.
 ## Is activation already on?
 
 This plugin's `pre_tool_call` hook **automatically** prepends
-`eval "$(mise activate bash)"` to every `terminal()` command when mise is
-installed and a config file exists in the working tree (or
-`HERMES_HARNESS_MISE_ALWAYS=1` is set).
+`eval "$(mise activate bash)"` to every `terminal()` command when a mise config
+file exists in the working tree or any parent.
 
 - **If active**, do NOT manually add activation — just `cd` into the repo and run.
 
