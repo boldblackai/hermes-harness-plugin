@@ -1,4 +1,4 @@
-name: lint
+name: ci
 
 on:
   push:
@@ -30,6 +30,22 @@ jobs:
 
       - name: ty check
         run: uv run ty check src
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.13
+
+      - name: Install dependencies
+        run: uv sync --extra dev
 
       - name: Test
         run: uv run pytest
