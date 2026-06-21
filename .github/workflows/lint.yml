@@ -30,3 +30,6 @@ jobs:
 
       - name: ty check
         run: uv run ty check src
+
+      - name: Test
+        run: uv run pytest
