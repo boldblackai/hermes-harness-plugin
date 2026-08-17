@@ -11,16 +11,22 @@ Hermes for use with [harness](https://github.com/boldblackai/harness).
 > elsewhere, expect the hardcoded paths and bundled context to be wrong for
 > your environment.
 
-It bundles a **`mise` skill** and **three lifecycle hooks**:
+It bundles a **`mise` skill** and **six lifecycle hooks**:
 
 1. a `pre_tool_call` hook that transparently activates mise for every
    `terminal()` command when a mise config file is present;
-2. an `on_session_start` hook that trusts the nearest mise config on startup; and
-3. a `pre_llm_call` hook that injects a bundled [`context.md`](src/hermes_harness_plugin/context.md) as additional
-   context into every LLM turn.
+2. an `on_session_start` hook that trusts the nearest mise config on startup;
+3. a `post_tool_call` hook that re-trusts configs after mutations and tracks
+   the shell's working directory;
+4. an `on_session_reset` hook that clears session bookkeeping; and
+5. two `pre_llm_call` hooks — one tells the model mise activation is handled
+   (when active), the other injects a bundled
+   [`context.md`](src/hermes_harness_plugin/context.md) as additional context
+   into every LLM turn.
 
-The mise activation is modeled on [`pi-mise`](https://github.com/capotej/pi-mise)
-(the same idea, for the `pi` coding agent).
+The mise behavior is modeled on the battle-tested
+[`pi-mise`](https://github.com/capotej/pi-mise) (the same idea, for the `pi`
+coding agent) and tracks its behavior feature-for-feature.
 
 ## What it does
 
@@ -40,13 +46,42 @@ Concretely, a `terminal(command="bundle install")` issued in a repo with a
 `mise.toml` becomes:
 
 ```bash
-eval "$(/usr/local/bin/mise activate bash)" && bundle install
+eval "$(/usr/local/bin/mise activate bash 2>/dev/null)" 2>/dev/null || true && bundle install
 ```
 
-An `on_session_start` hook also runs `mise trust` on the nearest config so
-activation is frictionless on fresh clones. (This auto-trusts whatever config
-is in the working tree — appropriate inside a trusted harness image, but
-another reason not to run this plugin elsewhere.)
+The wrapper is **stderr-tolerant**: if mise activation hiccups (an untrusted
+config somewhere up the tree, a transient warning), the failure is swallowed
+and the real command still runs — non-fatal mise output can never fail the
+command.
+
+### Trust lifecycle (pi-mise parity)
+
+mise **revokes trust when a config file changes**. The plugin manages trust
+end-to-end:
+
+- **Session start** — the nearest config at/above the working directory is
+  trusted once.
+- **Ahead of `cd`** — any `cd <target>` in a command is parsed, and the target
+  directory's config is trusted *before* the command runs (cached per
+  directory).
+- **After mutation** — when a config is modified via the `write_file`/`patch`
+  tools, or a command runs `mise use`/`unset`/`set` or redirects onto a config
+  file, trust is invalidated and re-applied on the next command.
+
+### Shell-cwd shadow tracking (Hermes-specific)
+
+Hermes' persistent shell `cd`s independently of the Python process, so the
+plugin tracks the shell's working directory itself: seeded from the process
+cwd at session start, advanced by parsed `cd` segments, and corrected from the
+authoritative `cwd` field of every terminal result. mise config resolution and
+trust decisions use that shadow, not `os.getcwd()`.
+
+### Model note (pi-mise parity)
+
+When mise is active, a `pre_llm_call` hook injects a short note telling the
+model that activation and trust are automatic — **even when a project's
+AGENTS.md instructs manual activation** — so the model never redundantly
+prepends `eval "$(mise activate bash)"` or runs `mise trust`.
 
 It also contributes a **`mise` skill** (`skill_view("hermes-harness-plugin:mise")`)
 covering manual `mise exec`, tasks, installs, trust, and the common pitfalls.
@@ -121,6 +156,17 @@ uv sync                                 # create venv + install dev deps
 uv run pytest                           # run tests
 uv build                                # build sdist + wheel into dist/
 ```
+
+## Release
+
+Releases are fully automated via trusted publishing — no PyPI tokens stored as secrets.
+
+1. Bump `__version__` in `src/hermes_harness_plugin/__init__.py`
+2. Add a `CHANGELOG.md` entry
+3. Open a PR titled `release v<version>` from a fork
+4. Squash-merge — the `release.yml` workflow tags, builds, publishes to PyPI (OIDC), and creates a GitHub release
+
+The `release v` commit-message sentinel triggers the workflow on `push: main`.
 
 ## License
 

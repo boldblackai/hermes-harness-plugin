@@ -1,0 +1,86 @@
+name: Tag and Release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  tag-and-release:
+    if: startsWith(github.event.head_commit.message, 'release v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Read version from package
+        id: version
+        run: |
+          VERSION=$(python3 -c "import importlib.metadata as m; print(m.version('hermes-harness-plugin'))" 2>/dev/null || \
+            grep -oP '__version__ = "\K[^"]+' src/hermes_harness_plugin/__init__.py)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Create tag
+        run: |
+          TAG="${{ steps.version.outputs.tag }}"
+          if git rev-parse "refs/tags/$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG already exists, skipping creation"
+          else
+            git tag "$TAG"
+            git push origin "$TAG"
+          fi
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.13
+
+      - name: Build sdist + wheel
+        run: uv build
+
+      - name: Publish to PyPI (OIDC trusted publishing)
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          if pip index versions hermes-harness-plugin 2>/dev/null | grep -q "$VERSION"; then
+            echo "Version $VERSION already published, skipping"
+          else
+            uv publish --dist-dir dist/
+          fi
+
+      - name: Extract changelog entry
+        id: changelog
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          awk -v ver="$VERSION" '
+            /^## \[/ && $0 ~ "\[" ver "\]" { found = 1 }
+            /^## \[/ && found && $0 !~ "\[" ver "\]" { exit }
+            found { print }
+          ' CHANGELOG.md > /tmp/release-notes.md
+          # Fallback if extraction produced nothing
+          if [ ! -s /tmp/release-notes.md ]; then
+            echo "Release v${VERSION}" > /tmp/release-notes.md
+          fi
+          cat /tmp/release-notes.md
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ steps.version.outputs.tag }}"
+          if gh release view "$TAG" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            echo "Release $TAG already exists, skipping creation"
+          else
+            gh release create "$TAG" \
+              --repo "${{ github.repository }}" \
+              --title "v${{ steps.version.outputs.version }}" \
+              --notes-file /tmp/release-notes.md
+          fi

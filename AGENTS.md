@@ -55,19 +55,43 @@ changes what actually executes:
 ```
 terminal("bundle install")
   -> pre_tool_call mutates args["command"] in place
-  -> handler runs:  eval "$(mise activate bash)" && bundle install
+  -> handler runs:  eval "$(mise activate bash 2>/dev/null)" 2>/dev/null || true && bundle install
 ```
 
 `mise.py` is the only file with mise logic. Its structure:
 
-- `compute_prefix(args, mise_bin) -> Optional[str]` — **pure function**, the
-  testable decision core. Returns the activation prefix or `None` to no-op.
-  All should-activate logic lives here.
+- **Pure parser helpers** (unit-tested, no side effects):
+  `is_mise_config_name`, `find_mise_config` / `find_mise_config_dir` (walk-up),
+  `resolve_path`, `cd_target_from_segment`, `parse_cd_dirs`,
+  `mutates_mise_config`, `compute_prefix` (the should-activate decision core).
 - `_MISE_BIN = "/usr/local/bin/mise"` — hardcoded; harness images always
   install mise at this path. No resolution or caching needed.
-- `find_mise_config(directory)` — walks up from the dir to the nearest of
-  `mise.toml` / `.mise.toml` / `.tool-versions` (priority order within a dir).
-- `pre_tool_call(...)` / `on_session_start(...)` — the registered hooks.
+- `_SessionState` (`state`) — per-session bookkeeping: `mise_active` flag,
+  `trusted_dirs` cache, `shadow_cwd` (the persistent shell's cwd), and
+  `bash_call_info` (tool_call_id → mutation context for post_tool_call).
+- Hooks: `pre_tool_call` (trust + rewrite), `post_tool_call` (trust
+  invalidation + shadow-cwd advance), `on_session_start` / `on_session_reset`
+  (trust once / clear state), `pre_llm_call_note` (tell the model activation
+  is automatic).
+
+The behavior is **pi-mise parity** (https://github.com/capotej/pi-mise —
+battle-tested over many sessions):
+
+- **Stderr-tolerant activation**: the prefix ends with `2>/dev/null || true`
+  so mise noise (untrusted config up the tree, warnings) can never fail the
+  user's command.
+- **Trust lifecycle**: mise revokes trust when a config changes, so trust is
+  re-applied: at session start, ahead of every `cd <target>` (parsed from the
+  command), and re-done after mutations (`write_file`/`patch` to a config,
+  `mise use`/`unset`/`set`, redirection onto a config).
+- **Shadow cwd** (Hermes-specific): the persistent shell `cd`s independently
+  of the Python process. `shadow_cwd` is seeded from process cwd at session
+  start, advanced by parsed `cd` segments, and corrected from each terminal
+  result's `cwd` field. Config resolution uses the shadow, not `os.getcwd()`.
+- **Model note**: while active, a `pre_llm_call` hook injects a note telling
+  the model NOT to manually activate/trust — even when AGENTS.md says to.
+  Hermes merges multiple `pre_llm_call` `{"context": ...}` returns into the
+  user message, so this composes with `context.py`'s injection.
 
 Activation is **idempotent**: commands already containing the activate marker
 (`__MISE_EXE=`) or the literal `mise activate` are left untouched.
@@ -75,7 +99,9 @@ Activation is **idempotent**: commands already containing the activate marker
 ### Context injection (pre_llm_call)
 
 `context.py` reads the bundled `context.md` and returns `{"context": text}`.
-Simple by design — the file is the surface, not the code.
+Simple by design — the file is the surface, not the code. Note `mise.py`
+registers a second `pre_llm_call` hook (`pre_llm_call_note`); Hermes runs
+both and joins their context parts.
 
 ### Hooks must never raise
 
@@ -85,10 +111,12 @@ failure — a broken hook must never break the agent loop. Preserve this when ed
 ## Conventions
 
 - **Pure helpers over integration tests.** New should-activate logic goes into
-  `compute_prefix` (or a similarly pure helper), then gets a unit test. The
-  hooks stay thin: call the pure function, mutate in place, catch all.
-- **pytest config** is in `pyproject.toml` (`testpaths=["tests"]`, `addopts="-q"`).
-  Do not add a separate `pytest.ini`.
+  a pure helper (`compute_prefix`, `parse_cd_dirs`, `mutates_mise_config`, …),
+  then gets a unit test. The hooks stay thin: call pure helpers, mutate in
+  place, catch all.
+- **pytest config** is in `pyproject.toml` (`testpaths=["tests"]`, `addopts="-q"`,
+  `markers=["integration", ...]`). Do not add a separate `pytest.ini`. Run
+  `uv run pytest -m "not integration"` to skip the real-mise suite.
 
 ## Packaging gotchas
 

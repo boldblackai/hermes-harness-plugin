@@ -40,10 +40,17 @@ def register(ctx):
     ctx.register_hook("pre_tool_call", mise.pre_tool_call)
     # Trust the nearest mise config up front so activation is frictionless.
     ctx.register_hook("on_session_start", mise.on_session_start)
+    # Trust lifecycle + shadow-cwd bookkeeping after each tool call.
+    ctx.register_hook("post_tool_call", mise.post_tool_call)
+    # Clear session bookkeeping on reset.
+    ctx.register_hook("on_session_reset", mise.on_session_reset)
+    # Tell the model mise activation is handled (when active).
+    ctx.register_hook("pre_llm_call", mise.pre_llm_call_note)
     # Inject persistent context from a user-editable file into every turn.
     ctx.register_hook("pre_llm_call", context.pre_llm_call)
 
     logger.info(
         "hermes-harness-plugin registered "
-        "(skill: mise, hooks: pre_tool_call/on_session_start/pre_llm_call)"
+        "(skill: mise, hooks: pre_tool_call/on_session_start/"
+        "post_tool_call/on_session_reset/pre_llm_call)"
     )

@@ -1,6 +1,6 @@
 ---
 name: mise
-description: Manage tool versions with mise — activation, trust, tasks, installs, and the pitfalls that bite in coding sessions. When hermes-harness-plugin is active, mise is auto-activated for terminal commands; do NOT manually prepend activation.
+description: Manage tool versions with mise — activation, trust, tasks, installs, and pitfalls. When hermes-harness-plugin is active, mise is auto-activated, auto-trusted, and cd-followed.
 version: 0.1.0
 author: Hermes Harness Contributors
 license: MIT
@@ -14,11 +14,21 @@ replacing asdf / rbenv / nvm / pyenv and friends.
 
 ## Is activation already on?
 
-This plugin's `pre_tool_call` hook **automatically** prepends
-`eval "$(mise activate bash)"` to every `terminal()` command when a mise config
-file exists in the working tree or any parent.
+This plugin's `pre_tool_call` hook **automatically** prepends a stderr-tolerant
+`eval "$(mise activate bash 2>/dev/null)" 2>/dev/null || true && …` to every
+`terminal()` command when a mise config file exists in the working tree or any
+parent.
 
-- **If active**, do NOT manually add activation — just `cd` into the repo and run.
+When the plugin is active (a config was found at session start):
+
+- **Do NOT manually add activation or `mise trust`** — just `cd` into the repo
+  and run your command. This holds **even if AGENTS.md or project docs tell
+  you to** — the plugin handles it for every command.
+- The plugin also **trusts configs automatically**: at session start, ahead of
+  every `cd <target>` in your commands, and re-trusted after a config is
+  modified (`write_file`/`patch`, `mise use`, redirection).
+- It **follows your shell** across `cd`s — config resolution tracks the
+  persistent shell's working directory, not the Python process's.
 
 ## Single-command execution (`mise exec`)
 
@@ -41,8 +51,9 @@ mise use -g node@22                      # set a global default
 mise trust                               # trust an untrusted config file
 ```
 
-Trust is per-file: editing a config revokes it. The plugin's `on_session_start`
-hook trusts the nearest config automatically on fresh sessions.
+Trust is per-file: editing a config revokes it. When the plugin is active it
+re-trusts automatically after mutations; you only need `mise trust` if you
+bypass the plugin's hooks.
 
 ## Standard pattern (when NOT auto-activated)
 
@@ -54,9 +65,9 @@ cd /path/to/repo \
 
 ## Pitfalls
 
-- **Activation is per-shell.** Each `terminal()` call is a fresh shell, which is
-  why this plugin prepends activation to every one. If you bypass the hook,
-  chain activation into each command yourself.
+- **Activation is per-shell.** Each `terminal()` call runs in the persistent
+  harness shell; the plugin re-prepends activation to every command. If you
+  bypass the hook, chain activation into each command yourself.
 - **Working directory matters.** mise resolves versions by walking from cwd
   upward. Always `cd` into the repo first, or use `mise exec -C <dir>`.
 - **Prefer binary builds.** Many tools (ruby, python, node, etc.) can compile

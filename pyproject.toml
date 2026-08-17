@@ -51,6 +51,9 @@ dev = ["pytest>=7", "ruff>=0.13", "ty>=0.0.1"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+markers = [
+    "integration: drives the hooks against the real mise binary (deselected with '-m \"not integration\"')",
+]
 
 [tool.ruff]
 line-length = 99
